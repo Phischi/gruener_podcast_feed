@@ -1,161 +1,131 @@
 # Gruener Podcast Feed
 
-This repository is an early-stage pipeline for turning a political newsletter into a spoken podcast episode.
+This repository is being reworked from a notebook-heavy proof of concept into a reproducible newsletter-to-podcast pipeline.
 
-The current setup focuses on a German-language format called `GrünGeschnackt`. It combines:
+The target workflow is:
 
-- a Go program that reads the latest tagged newsletter email from an IMAP inbox
-- an OpenAI prompt that rewrites that newsletter into a podcast-style dialogue script
-- Python notebooks that experiment with turning the script into speech with OpenAI TTS and Gemini TTS
+1. Fetch the latest newsletter email from IMAP.
+2. Normalize the email into a structured newsletter artifact.
+3. Generate a spoken podcast script.
+4. Extract events into machine-readable JSON and `.ics`.
+5. Render audio.
+6. Publish a podcast feed over RSS.
+7. Trigger the flow automatically from n8n or another scheduler.
 
-The repository is closer to a proof of concept than a finished product, but the main building blocks are already here.
+The new Python package and CLI are now in place for ingestion, artifact generation, calendar export, audio rendering, and RSS generation. The remaining work is mainly around hardened storage uploads, richer feed metadata, and tests.
 
-## What The Repository Does
+## Current State
 
-The intended workflow is:
+There are now two layers in the repository:
 
-1. A newsletter arrives by email.
-2. The Go email connector logs into an IMAP inbox and scans the latest messages.
-3. It selects the first message whose subject starts with `[gn]`.
-4. The email body is cleaned up, stripped of HTML, and truncated to fit model limits.
-5. The cleaned newsletter text is sent to OpenAI with a system prompt tailored for the `GrünGeschnackt` podcast format.
-6. The generated podcast script is written to `podcast_scripts/`.
-7. The notebooks can then be used to synthesize spoken audio from the generated text.
+- legacy prototype assets:
+  [gruen_geschnackt_poc.ipynb](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/gruen_geschnackt_poc.ipynb),
+  [podcast_voice_generator.ipynb](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/podcast_voice_generator.ipynb),
+  and the older Go connector under [email-connector/](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/email-connector)
+- new production-oriented package:
+  [src/gruener_podcast_feed/](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed)
+
+The redesign plan is documented in [docs/rebuild_plan.md](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/docs/rebuild_plan.md).
+
+## New Architecture
+
+The new Python pipeline is organized around deterministic run artifacts under `runs/<run-id>/`.
+
+Each run can produce:
+
+- `raw_email.eml`
+- `newsletter.json`
+- `script.txt`
+- `episode.json`
+- `events.json`
+- `events.ics`
+- `audio/episode.mp3`
+- `feed/feed.xml`
+
+An aggregate RSS file can also be generated at `runs/feed.xml`, and a public copy can be published into `PUBLIC_OUTPUT_DIR`.
 
 ## Repository Structure
 
-- [email-connector/main.go](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/email-connector/main.go): IMAP ingestion and newsletter-to-script generation in Go
-- [email-connector/system_prompt.txt](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/email-connector/system_prompt.txt): prompt that defines the podcast style, structure, and tone
-- [email-connector/README.md](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/email-connector/README.md): older subproject README for the Go connector
-- [gruen_geschnackt_poc.ipynb](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/gruen_geschnackt_poc.ipynb): prototype notebook for multi-speaker dialogue TTS and audio stitching
-- [podcast_voice_generator.ipynb](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/podcast_voice_generator.ipynb): smaller notebook for text generation and single-speaker TTS experiments
-- [requirements.txt](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/requirements.txt): Python dependencies used by the notebooks
+- [pyproject.toml](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/pyproject.toml): package metadata and CLI entry point
+- [.env.example](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/.env.example): example runtime configuration
+- [src/gruener_podcast_feed/cli.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/cli.py): command-line entry point
+- [src/gruener_podcast_feed/pipeline.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/pipeline.py): orchestration for ingestion, episode building, and feed publishing
+- [src/gruener_podcast_feed/imap_client.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/imap_client.py): IMAP newsletter fetching
+- [src/gruener_podcast_feed/newsletter.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/newsletter.py): email parsing and normalization
+- [src/gruener_podcast_feed/script_generator.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/script_generator.py): script generation and dialogue parsing
+- [src/gruener_podcast_feed/event_extractor.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/event_extractor.py): event extraction entry point
+- [src/gruener_podcast_feed/ical_writer.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/ical_writer.py): calendar file generation
+- [src/gruener_podcast_feed/feed/rss_writer.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/feed/rss_writer.py): RSS feed generation
+- [docs/operations.md](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/docs/operations.md): secure email, RSS hosting, and n8n integration guidance
 
-## Current Components
-
-### 1. Email Connector
-
-The Go connector:
-
-- loads credentials from a local `.env`
-- connects to an IMAP server via TLS
-- reads the `INBOX`
-- fetches up to the last 100 messages
-- finds the first email whose subject starts with `[gn]`
-- extracts text from plain text or HTML email parts
-- sends the cleaned content to OpenAI chat completions
-- saves the generated script into `podcast_scripts/<sanitized-subject>.txt`
-
-The current prompt instructs the model to:
-
-- produce a dialogue between `Pia Plastikfrei` and `Nico Nachhaltig`
-- structure the episode into political updates, events, and engagement opportunities
-- keep the language friendly and easy to listen to
-- include a machine-readable iCal overview of newsletter events in the shownotes
-
-Important caveat:
-The connector currently writes only a `.txt` script file. It does not yet create a real `.ics` file, even though the prompt asks for calendar output.
-
-### 2. Notebook Prototypes
-
-The notebooks cover the audio side of the pipeline:
-
-- `podcast_voice_generator.ipynb` tests OpenAI chat generation and basic text-to-speech output
-- `gruen_geschnackt_poc.ipynb` prototypes a two-speaker podcast, splitting the script into segments and assigning different voices to `Pia` and `Nico`
-
-The multi-speaker notebook uses `pydub` to concatenate audio segments and export a final MP3. In practice, that means you also need FFmpeg tooling available on the machine. The checked notebook output shows failures caused by missing `ffprobe`, so audio assembly is not fully plug-and-play yet.
-
-## Requirements
-
-### Go
-
-- Go 1.21+
-
-### Python
-
-Install the notebook dependencies from [requirements.txt](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/requirements.txt):
+## Installation
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e .
 ```
 
-### External Services
+Optional legacy notebook dependencies still live in [requirements.txt](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/requirements.txt).
 
-- an IMAP-enabled email account
-- an OpenAI API key for script generation and OpenAI TTS experiments
-- optionally a Gemini API key for the Gemini TTS notebook cells
-- FFmpeg tools, especially `ffprobe`, if you want `pydub` audio concatenation to work reliably
+## Configuration
 
-## Environment Variables
+Copy [.env.example](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/.env.example) into a runtime `.env` file and fill in the values you actually use.
 
-For the Go connector, create a `.env` file in the repository root or inside `email-connector/` depending on where you run it from:
+Minimum practical variables:
 
 ```env
-EMAIL_USER=your.email@example.com
-EMAIL_PASSWORD=your_app_password
-EMAIL_SERVER=imap.example.com:993
-OPENAI_API_KEY=your_openai_api_key
+OPENAI_API_KEY=...
+NEWSLETTER_IMAP_HOST=imap.example.com
+NEWSLETTER_IMAP_PORT=993
+NEWSLETTER_IMAP_USERNAME=podcast-newsletter@example.com
+NEWSLETTER_IMAP_PASSWORD=app-password
+PODCAST_BASE_URL=https://podcast.example.com
+PODCAST_FEED_URL=https://podcast.example.com/feed.xml
+PODCAST_SITE_URL=https://podcast.example.com
 ```
 
-For the notebooks, you may also need:
+## CLI Usage
 
-```env
-GEMINI_API_TOKEN=your_gemini_api_key
-```
-
-## Running The Email Connector
-
-From the connector directory:
+Fetch the latest matching email only:
 
 ```bash
-cd email-connector
-go mod download
-go run main.go
+gruenpod fetch-email --env-file .env
 ```
 
-If successful, the program will:
+Build an episode from a local `.eml` file:
 
-- connect to your mailbox
-- process the latest matching newsletter mail
-- write the generated podcast script to `email-connector/podcast_scripts/`
+```bash
+gruenpod build-from-eml sample.eml --env-file .env
+```
 
-## Using The Notebooks
+Run the end-to-end pipeline currently implemented:
 
-Open the notebooks in Jupyter and run the cells step by step.
+```bash
+gruenpod run --env-file .env
+```
 
-Typical usage:
+Regenerate the aggregate RSS feed from saved episode artifacts:
 
-- generate or paste a script
-- choose OpenAI or Gemini voices
-- synthesize individual dialogue segments
-- stitch them into one podcast MP3
+```bash
+gruenpod publish-feed --env-file .env
+```
 
-The notebooks are exploratory and not yet packaged as a repeatable CLI workflow.
+If `OPENAI_API_KEY` is missing, the pipeline falls back to a minimal deterministic script mode instead of live LLM generation and skips TTS rendering.
 
-## Outputs
+## Secure Email, RSS, And n8n
 
-Current outputs in this repo are:
+Operational guidance now lives in [docs/operations.md](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/docs/operations.md), including:
 
-- generated podcast scripts in `podcast_scripts/`
-- temporary and final audio files such as `*.mp3` and `*.wav`
+- how to connect a dedicated IMAP mailbox securely
+- how to host a public RSS feed and MP3 files
+- how to call the CLI on a schedule from n8n
 
-These are already ignored by Git via [.gitignore](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/.gitignore).
+## Remaining Gaps
 
-## Project Status
+The redesign is started, not finished. Still missing:
 
-This repository is best understood as a prototype for a newsletter-to-podcast pipeline. The core idea works in pieces, but there are still gaps before it becomes a clean end-to-end system:
-
-- the Go connector and the audio generation live in separate workflows
-- calendar extraction is requested in the prompt but not implemented as a standalone file output
-- the notebooks contain hard-coded experimental content and manual steps
-- audio post-processing still depends on local multimedia tooling
-
-## Next Logical Improvements
-
-- turn the notebooks into Python scripts or a small CLI pipeline
-- generate a real `.ics` file instead of only asking the model to include calendar data in text
-- make the email selection rule configurable instead of hard-coding the `[gn]` subject prefix
-- add tests around email parsing and script generation
-- document one fully reproducible end-to-end run
+- object storage uploads beyond local public directory publishing
+- richer podcast XML beyond the first iTunes tags
+- automated tests
+- migration away from the old Go connector and notebooks once parity is reached
