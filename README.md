@@ -1,22 +1,25 @@
 # Gruener Podcast Feed
 
-Gruener Podcast Feed turns the latest newsletter email into a local podcast episode with structured intermediate artifacts.
+Gruener Podcast Feed turns the latest newsletter email into a local podcast episode and stores each processing step as a reproducible run artifact.
 
-The default workflow is:
+The supported workflow is:
 
 1. Fetch the latest newsletter email from IMAP.
 2. Normalize the email into a structured newsletter artifact.
 3. Generate a spoken podcast script.
 4. Extract events into machine-readable JSON and `.ics`.
 5. Render audio.
-6. Publish a podcast feed over RSS.
-7. Publish the finished files locally and optionally hand them off to automation.
+6. Publish the finished files locally under `public/`.
+7. Optionally regenerate an aggregate RSS feed from saved runs.
 
-## New Architecture
+## Repository Layout
 
-The Python package is organized around deterministic run artifacts under `runs/<run-id>/`.
+- `src/gruener_podcast_feed/`: package source code
+- `docs/`: operational notes and redesign background
+- `.env.example`: runtime configuration template
+- `start.sh`: default entry point for the end-to-end run
 
-Each run can produce:
+Every run writes deterministic output under `runs/<run-id>/`:
 
 - `raw_email.eml`
 - `newsletter.json`
@@ -27,23 +30,9 @@ Each run can produce:
 - `audio/episode.mp3`
 - `feed/feed.xml`
 
-An aggregate RSS file can also be generated at `runs/feed.xml`, and a public copy can be published into `PUBLIC_OUTPUT_DIR`.
+The latest playable MP3 is also copied to `public/audio/`, and the current feed to `public/feed.xml`.
 
-## Repository Structure
-
-- [pyproject.toml](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/pyproject.toml): package metadata and CLI entry point
-- [.env.example](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/.env.example): example runtime configuration
-- [src/gruener_podcast_feed/cli.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/cli.py): command-line entry point
-- [src/gruener_podcast_feed/pipeline.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/pipeline.py): orchestration for ingestion, episode building, and feed publishing
-- [src/gruener_podcast_feed/imap_client.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/imap_client.py): IMAP newsletter fetching
-- [src/gruener_podcast_feed/newsletter.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/newsletter.py): email parsing and normalization
-- [src/gruener_podcast_feed/script_generator.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/script_generator.py): script generation and dialogue parsing
-- [src/gruener_podcast_feed/event_extractor.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/event_extractor.py): event extraction entry point
-- [src/gruener_podcast_feed/ical_writer.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/ical_writer.py): calendar file generation
-- [src/gruener_podcast_feed/feed/rss_writer.py](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/src/gruener_podcast_feed/feed/rss_writer.py): RSS feed generation
-- [docs/operations.md](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/docs/operations.md): secure email, RSS hosting, and n8n integration guidance
-
-## Installation
+## Setup
 
 ```bash
 python3 -m venv .venv
@@ -51,11 +40,13 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-## Configuration
+You also need:
 
-Copy [.env.example](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/.env.example) into a runtime `.env` file and fill in the values you actually use.
+- `ffmpeg` and `ffprobe` available on `PATH`
+- an IMAP mailbox for the newsletter
+- an `OPENAI_API_KEY` if you want live script generation and TTS audio
 
-Minimum practical variables:
+Copy `.env.example` to `.env` and fill in the values you actually use. The minimum practical configuration is:
 
 ```env
 OPENAI_API_KEY=...
@@ -68,58 +59,37 @@ PODCAST_FEED_URL=https://podcast.example.com/feed.xml
 PODCAST_SITE_URL=https://podcast.example.com
 ```
 
-## Starting The App
+## Running The Pipeline
 
-For the normal end-to-end run, use the repository script:
+For the normal end-to-end run, use:
 
 ```bash
 ./start.sh
 ```
 
-The script runs `.venv/bin/gruenpod --env-file .env run` and fails early if the virtual environment or `.env` file is missing.
+This script runs `.venv/bin/gruenpod --env-file .env run` and fails early if the virtual environment or `.env` file is missing.
 
-## CLI Usage
+Useful direct CLI commands:
 
-Use the CLI directly when you want a narrower step:
-
-Fetch the latest matching email only:
-
-```bash
-gruenpod --env-file .env fetch-email
-```
-
-Build an episode from a local `.eml` file:
-
-```bash
-gruenpod --env-file .env build-from-eml sample.eml
-```
-
-Run the end-to-end pipeline currently implemented:
-
-```bash
-gruenpod --env-file .env run
-```
-
-Regenerate the aggregate RSS feed from saved episode artifacts:
-
-```bash
-gruenpod --env-file .env publish-feed
-```
+- `gruenpod --env-file .env fetch-email`
+- `gruenpod --env-file .env build-from-eml sample.eml`
+- `gruenpod --env-file .env run`
+- `gruenpod --env-file .env publish-feed`
 
 If `OPENAI_API_KEY` is missing, the pipeline falls back to a minimal deterministic script mode instead of live LLM generation and skips TTS rendering.
 
-## Secure Email, RSS, And n8n
+## Outputs
 
-Operational guidance now lives in [docs/operations.md](/media/philipp/installation/projects/ai_projects/gruener_podcast_feed/docs/operations.md), including:
+After a successful run, the most useful files are:
 
-- how to connect a dedicated IMAP mailbox securely
-- how to host a public RSS feed and MP3 files
-- how to call the CLI on a schedule from n8n
+- `runs/<run-id>/audio/episode.mp3`
+- `runs/<run-id>/script.txt`
+- `runs/<run-id>/events.ics`
+- `public/audio/<episode-slug>.mp3`
+- `public/feed.xml`
 
-## Remaining Gaps
+## Notes
 
-Still missing:
-
-- object storage uploads beyond local public directory publishing
-- richer podcast XML beyond the first iTunes tags
-- automated tests
+- Operational guidance for IMAP, hosting, and automation lives in `docs/operations.md`.
+- The redesign background and intended end state are documented in `docs/rebuild_plan.md`.
+- The repository still lacks automated tests and richer podcast-specific XML metadata.
