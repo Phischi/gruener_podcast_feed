@@ -55,19 +55,6 @@ class LLMClient:
         payload = json.loads(_extract_json_object(response.output_text))
         return [Event(**item) for item in payload.get("events", [])]
 
-    def synthesize_speech(self, text: str, voice: str, model: str, output_path: str | None = None) -> bytes:
-        response = self._client.audio.speech.create(
-            model=model,
-            voice=voice,
-            input=text,
-        )
-        audio_bytes = response.read()
-        if output_path is not None:
-            with open(output_path, "wb") as handle:
-                handle.write(audio_bytes)
-        return audio_bytes
-
-
 def _extract_json_object(text: str) -> str:
     stripped = text.strip()
     if not stripped:

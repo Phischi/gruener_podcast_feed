@@ -42,8 +42,6 @@ class PodcastConfig:
 class AudioConfig:
     tts_model: str
     voices: dict[str, str]
-    pause_different_speaker_ms: int
-    pause_same_speaker_ms: int
     public_output_dir: Path
     public_audio_path: str
 
@@ -51,6 +49,7 @@ class AudioConfig:
 @dataclass(slots=True)
 class AppConfig:
     openai_api_key: str | None
+    gemini_api_key: str | None
     runs_dir: Path
     imap: ImapConfig
     podcast: PodcastConfig
@@ -95,20 +94,19 @@ def load_config(env_file: str | None = None) -> AppConfig:
     )
 
     audio = AudioConfig(
-        tts_model=os.getenv("TTS_MODEL", "gpt-4o-mini-tts"),
+        tts_model=os.getenv("TTS_MODEL", "gemini-2.5-flash-preview-tts"),
         voices={
-            "Pia": os.getenv("TTS_VOICE_PIA", "nova"),
-            "Nico": os.getenv("TTS_VOICE_NICO", "verse"),
-            "Narrator": os.getenv("TTS_VOICE_NARRATOR", "alloy"),
+            "Pia": os.getenv("TTS_VOICE_PIA", "Kore"),
+            "Nico": os.getenv("TTS_VOICE_NICO", "Orus"),
+            "Narrator": os.getenv("TTS_VOICE_NARRATOR", "Charon"),
         },
-        pause_different_speaker_ms=int(os.getenv("TTS_PAUSE_DIFFERENT_SPEAKER_MS", "450")),
-        pause_same_speaker_ms=int(os.getenv("TTS_PAUSE_SAME_SPEAKER_MS", "200")),
         public_output_dir=Path(os.getenv("PUBLIC_OUTPUT_DIR", "public")).resolve(),
         public_audio_path=os.getenv("PUBLIC_AUDIO_PATH", "audio").strip("/"),
     )
 
     return AppConfig(
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
+        gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
         runs_dir=runs_dir,
         imap=imap,
         podcast=podcast,
