@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from email import policy
+from email.utils import parsedate_to_datetime
 from email.message import EmailMessage
 from email.parser import BytesParser
 from html.parser import HTMLParser
@@ -75,3 +77,26 @@ def newsletter_from_message(message: EmailMessage, source_path: Path | None = No
 def load_newsletter_from_eml(path: Path) -> Newsletter:
     message = BytesParser(policy=policy.default).parsebytes(path.read_bytes())
     return newsletter_from_message(message, source_path=path)
+
+
+def ensure_recent_newsletter(newsletter: Newsletter, max_age_days: int = 14) -> None:
+    if not newsletter.received_at:
+        raise ValueError("Newsletter email is missing a Date header")
+
+    try:
+        received_at = parsedate_to_datetime(newsletter.received_at)
+    except (TypeError, ValueError, IndexError, OverflowError) as exc:
+        raise ValueError(f"Newsletter email has an invalid Date header: {newsletter.received_at}") from exc
+
+    if received_at.tzinfo is None:
+        received_at = received_at.replace(tzinfo=timezone.utc)
+    else:
+        received_at = received_at.astimezone(timezone.utc)
+
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=max_age_days)
+    if received_at < cutoff:
+        raise ValueError(
+            "Newsletter email is too old to process: "
+            f"received {received_at.isoformat()}, cutoff is {cutoff.isoformat()}"
+        )
