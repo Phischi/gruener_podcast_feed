@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import sys
 
 from .audio import render_dialogue_to_mp3
 from .config import AppConfig
@@ -15,6 +16,7 @@ from .newsletter import load_newsletter_from_eml
 from .paths import RunPaths, build_run_paths
 from .publisher import publish_audio_asset, publish_feed_asset
 from .script_generator import generate_script, parse_dialogue
+from .speech import GoogleTextToSpeechClient
 from .utils import slugify, write_json
 
 
@@ -22,6 +24,16 @@ def _build_llm(config: AppConfig) -> LLMClient | None:
     if not config.openai_api_key:
         return None
     return LLMClient(config.openai_api_key)
+
+
+def _build_speech_client(config: AppConfig) -> GoogleTextToSpeechClient | None:
+    if not config.gemini_api_key:
+        return None
+    try:
+        return GoogleTextToSpeechClient(config.gemini_api_key)
+    except RuntimeError as exc:
+        print(f"Warning: audio rendering disabled, continuing without TTS: {exc}", file=sys.stderr)
+        return None
 
 
 def fetch_newsletter_from_imap(config: AppConfig, run_id: str) -> tuple[Newsletter, RunPaths]:
@@ -43,6 +55,7 @@ def load_newsletter_from_file(config: AppConfig, run_id: str, eml_path: Path) ->
 
 def build_episode(config: AppConfig, newsletter: Newsletter, run_paths: RunPaths) -> Episode:
     llm = _build_llm(config)
+    speech_client = _build_speech_client(config)
     script_text = generate_script(newsletter, llm=llm)
     dialogue = parse_dialogue(script_text)
     events = extract_events(script_text, llm=llm)
@@ -60,12 +73,11 @@ def build_episode(config: AppConfig, newsletter: Newsletter, run_paths: RunPaths
         events=events,
     )
 
-    if llm is not None and dialogue:
+    if speech_client is not None and dialogue:
         render_dialogue_to_mp3(
-            llm=llm,
+            speech_client=speech_client,
             dialogue=dialogue,
             output_path=run_paths.final_audio_path,
-            temp_dir=run_paths.audio_dir / "segments",
             config=config.audio,
         )
         episode.audio_file = str(run_paths.final_audio_path)
