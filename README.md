@@ -44,12 +44,14 @@ You also need:
 
 - `ffmpeg` and `ffprobe` available on `PATH`
 - an IMAP mailbox for the newsletter
-- an `OPENAI_API_KEY` if you want live script generation and TTS audio
+- an `OPENAI_API_KEY` if you want live script generation and event extraction
+- a `GEMINI_API_KEY` from Google AI Studio if you want generated episode audio
 
 Copy `.env.example` to `.env` and fill in the values you actually use. The minimum practical configuration is:
 
 ```env
 OPENAI_API_KEY=...
+GEMINI_API_KEY=...
 NEWSLETTER_IMAP_HOST=imap.example.com
 NEWSLETTER_IMAP_PORT=993
 NEWSLETTER_IMAP_USERNAME=podcast-newsletter@example.com
@@ -76,7 +78,9 @@ Useful direct CLI commands:
 - `gruenpod --env-file .env run`
 - `gruenpod --env-file .env publish-feed`
 
-If `OPENAI_API_KEY` is missing, the pipeline falls back to a minimal deterministic script mode instead of live LLM generation and skips TTS rendering.
+If `OPENAI_API_KEY` is missing, the pipeline falls back to a minimal deterministic script mode and skips event extraction. If `GEMINI_API_KEY` is missing, the pipeline still builds episode artifacts but skips audio rendering.
+
+Audio rendering uses Gemini multi-speaker TTS in a single request. Because Google currently supports two configured speakers in that mode, any `Narrator` lines are reassigned to the most recent host voice during rendering.
 
 ## Outputs
 

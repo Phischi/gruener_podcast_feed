@@ -44,11 +44,11 @@ Status: implemented
 ### Phase 5. Audio Rendering
 
 - Replace notebook-based TTS generation with a package module
-- Generate one audio segment per dialogue turn
-- Stitch segments with configurable pauses
+- Render the full dialogue in one Gemini multi-speaker TTS request
+- Normalize the script to two active speakers for Google multi-speaker output
 - Upload the finished MP3 and write the public `audio_url` back to `episode.json`
 
-Status: implemented for OpenAI TTS plus local public directory publishing
+Status: implemented for Google AI Studio TTS plus local public directory publishing
 
 ### Phase 6. Automation And Operations
 

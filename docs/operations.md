@@ -112,7 +112,7 @@ Recommended n8n flow:
 
 Recommended secret handling in n8n:
 
-- store IMAP and OpenAI credentials in n8n credentials or environment-backed secrets
+- store IMAP, OpenAI, and Gemini API credentials in n8n credentials or environment-backed secrets
 - mount the `.env` file from a protected location if you prefer file-based config
 - do not hard-code secrets in node parameters
 
