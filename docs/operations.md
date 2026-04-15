@@ -74,6 +74,70 @@ The current RSS writer is a clean base, but for broad podcast app compatibility 
 - `itunes:image`
 - `itunes:category`
 
+## GCP Deployment (Terraform + Cloud Run)
+
+For a fully managed, scheduled execution, you can deploy the pipeline to Google Cloud Platform.
+
+### Prerequisites
+
+1. A GCP Project with billing enabled.
+2. `gcloud` CLI and `terraform` installed locally.
+3. APIs enabled: Cloud Run, Cloud Scheduler, Secret Manager, Artifact Registry, Cloud Storage.
+
+### 1. Build and Push the Container
+
+Create an Artifact Registry repository and push the image:
+
+```bash
+# Create repository
+gcloud artifacts repositories create podcast-images --repository-format=docker --location=europe-west3
+
+# Build and tag
+docker build -t europe-west3-docker.pkg.dev/[PROJECT_ID]/podcast-images/gruenpod:latest .
+
+# Push
+docker push europe-west3-docker.pkg.dev/[PROJECT_ID]/podcast-images/gruenpod:latest
+```
+
+### 2. Deploy Infrastructure
+
+Initialize and apply the Terraform configuration in the `terraform/` directory:
+
+```bash
+cd terraform
+terraform init
+
+terraform apply \
+  -var="project_id=[PROJECT_ID]" \
+  -var="bucket_name=[UNIQUE_BUCKET_NAME]" \
+  -var="docker_image=europe-west3-docker.pkg.dev/[PROJECT_ID]/podcast-images/gruenpod:latest"
+```
+
+### 3. Configure Secrets
+
+The Terraform script creates the Secret Manager placeholders. You must populate them with your actual keys:
+
+- `OPENAI_API_KEY`
+- `GEMINI_API_KEY`
+- `NEWSLETTER_IMAP_USERNAME`
+- `NEWSLETTER_IMAP_PASSWORD`
+- `NEWSLETTER_IMAP_HOST`
+
+```bash
+echo -n "your-api-key" | gcloud secrets versions add OPENAI_API_KEY --data-file=-
+# ... repeat for others
+```
+
+### 4. Verification
+
+You can manually trigger a run to verify everything is working:
+
+```bash
+gcloud run jobs execute gruenpod-pipeline-job --region europe-west3
+```
+
+The audio and `feed.xml` will be available at `https://storage.googleapis.com/[BUCKET_NAME]/feed.xml`.
+
 ## n8n Integration
 
 The cleanest production model is to let n8n orchestrate the pipeline, while the Python app does the real work.
