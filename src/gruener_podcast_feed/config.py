@@ -51,6 +51,7 @@ class AppConfig:
     openai_api_key: str | None
     gemini_api_key: str | None
     runs_dir: Path
+    gcs_bucket_name: str | None
     imap: ImapConfig
     podcast: PodcastConfig
     audio: AudioConfig
@@ -108,6 +109,7 @@ def load_config(env_file: str | None = None) -> AppConfig:
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
         gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
         runs_dir=runs_dir,
+        gcs_bucket_name=os.getenv("GCS_BUCKET_NAME") or None,
         imap=imap,
         podcast=podcast,
         audio=audio,

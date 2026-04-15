@@ -13,7 +13,7 @@ from .pipeline import (
     publish_feed,
     publish_global_feed,
 )
-from .publisher import publish_feed_asset
+from .publisher import publish_feed_asset, sync_to_gcs
 
 
 def _default_run_id() -> str:
@@ -56,6 +56,7 @@ def main() -> None:
         episode = build_episode(config, newsletter, run_paths)
         publish_feed(config, episode, run_paths)
         published_episode, public_feed_path = publish_assets(config, episode, run_paths)
+        sync_to_gcs(config)
         print(f"Built episode '{published_episode.title}' into {run_paths.root}; public feed at {public_feed_path}")
         return
 
@@ -64,12 +65,14 @@ def main() -> None:
         episode = build_episode(config, newsletter, run_paths)
         publish_feed(config, episode, run_paths)
         published_episode, public_feed_path = publish_assets(config, episode, run_paths)
+        sync_to_gcs(config)
         print(f"Built and published episode '{published_episode.title}' into {run_paths.root}; public feed at {public_feed_path}")
         return
 
     if args.command == "publish-feed":
         output_path = publish_global_feed(config)
         public_feed_path = publish_feed_asset(config, output_path)
+        sync_to_gcs(config)
         print(f"Published aggregate feed to {output_path}; public feed at {public_feed_path}")
         return
 
