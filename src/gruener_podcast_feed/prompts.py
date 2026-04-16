@@ -5,7 +5,7 @@ Erstelle daraus ein gut vertonbares Podcast-Skript auf Deutsch.
 
 Anforderungen:
 - Schreibe einen natürlichen Dialog zwischen Pia Plastikfrei und Nico Nachhaltig.
-- Starte mit einem kurzen Intro mit Titel, Datum und Kontext.
+- Starte mit einem kurzen Intro mit Titel, Datum und Kontext. Erwähne, dass es sich um einen KI-generierten Podcast über die neuesten Informationen aus dem Newsletter der Grünen in Hamburg handelt.
 - Strukturiere die Folge in:
   1. Politisches Update
   2. Veranstaltungen und Termine
