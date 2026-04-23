@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import load_config
+from .maintenance import delete_episode_interactive
 from .pipeline import (
     build_episode,
     fetch_newsletter_from_imap,
@@ -37,6 +38,8 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--run-id", default=_default_run_id())
 
     subparsers.add_parser("publish-feed", help="Generate an aggregate RSS feed from all built episodes")
+
+    subparsers.add_parser("delete-episode", help="Interactively delete an episode from the feed")
 
     return parser
 
@@ -74,6 +77,10 @@ def main() -> None:
         public_feed_path = publish_feed_asset(config, output_path)
         sync_to_gcs(config)
         print(f"Published aggregate feed to {output_path}; public feed at {public_feed_path}")
+        return
+
+    if args.command == "delete-episode":
+        delete_episode_interactive(config)
         return
 
     raise SystemExit(f"Unsupported command: {args.command}")
